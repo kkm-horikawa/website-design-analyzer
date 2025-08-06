@@ -92,19 +92,21 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
   };
 
   // Wayback MachineからHTMLコンテンツを取得
-  const fetchArchiveContent = async (archiveUrl: string): Promise<string | null> => {
+  const fetchArchiveContent = async (
+    archiveUrl: string
+  ): Promise<string | null> => {
     try {
       // CORS回避のため、プロキシまたは代替手段を使用
       // 実際のプロダクションでは、バックエンドAPIを経由する必要がある
-      
+
       // 一般的な方法としてallorigins.winを使用（開発用）
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(archiveUrl)}`;
-      
+
       const response = await fetch(proxyUrl);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       return await response.text();
     } catch (error) {
       console.warn('Archive content fetch failed:', error);
@@ -113,7 +115,10 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
   };
 
   // 実際のHTMLコンテンツからDIFFを生成
-  const generateRealDiff = async (leftContent: string | null, rightContent: string | null): Promise<DiffSection[]> => {
+  const generateRealDiff = async (
+    leftContent: string | null,
+    rightContent: string | null
+  ): Promise<DiffSection[]> => {
     if (!leftContent || !rightContent) {
       return generateMockDiff();
     }
@@ -148,7 +153,6 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
       if (metaDiff.lines.length > 0) {
         sections.push(metaDiff);
       }
-
     } catch (error) {
       console.warn('Real diff generation failed, falling back to mock:', error);
       return generateMockDiff();
@@ -170,7 +174,7 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
       meta: metaMatches || [],
       head: headMatch?.[1] || '',
       body: bodyMatch?.[1] || '',
-      full: html
+      full: html,
     };
   };
 
@@ -185,13 +189,13 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
         type: 'removed',
         oldLineNumber: 1,
         content: `<title>${leftDOM.title}</title>`,
-        isSignificant: true
+        isSignificant: true,
       });
       lines.push({
         type: 'added',
         newLineNumber: 1,
         content: `<title>${rightDOM.title}</title>`,
-        isSignificant: true
+        isSignificant: true,
       });
       changeCount += 2;
     }
@@ -200,25 +204,25 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
     const leftMeta = new Set(leftDOM.meta);
     const rightMeta = new Set(rightDOM.meta);
 
-    leftMeta.forEach(meta => {
+    leftMeta.forEach((meta) => {
       if (!rightMeta.has(meta)) {
         lines.push({
           type: 'removed',
           oldLineNumber: lines.length + 2,
           content: String(meta),
-          isSignificant: true
+          isSignificant: true,
         });
         changeCount++;
       }
     });
 
-    rightMeta.forEach(meta => {
+    rightMeta.forEach((meta) => {
       if (!leftMeta.has(meta)) {
         lines.push({
           type: 'added',
           newLineNumber: lines.length + 2,
           content: String(meta),
-          isSignificant: true
+          isSignificant: true,
         });
         changeCount++;
       }
@@ -228,12 +232,15 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
       type: 'html',
       title: 'HTML構造',
       changeCount,
-      lines
+      lines,
     };
   };
 
   // CSSコンテンツの比較
-  const compareCSSContent = (leftContent: string, rightContent: string): DiffSection => {
+  const compareCSSContent = (
+    leftContent: string,
+    rightContent: string
+  ): DiffSection => {
     const lines: DiffLine[] = [];
     let changeCount = 0;
 
@@ -242,18 +249,21 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
     const rightStyles = extractStyles(rightContent);
 
     // 簡易的な差分検出
-    const allSelectors = new Set([...Object.keys(leftStyles), ...Object.keys(rightStyles)]);
-    
-    allSelectors.forEach(selector => {
+    const allSelectors = new Set([
+      ...Object.keys(leftStyles),
+      ...Object.keys(rightStyles),
+    ]);
+
+    allSelectors.forEach((selector) => {
       const leftRule = leftStyles[selector];
       const rightRule = rightStyles[selector];
-      
+
       if (!rightRule && leftRule) {
         lines.push({
           type: 'removed',
           oldLineNumber: lines.length + 1,
           content: `${selector} { ${leftRule} }`,
-          isSignificant: true
+          isSignificant: true,
         });
         changeCount++;
       } else if (!leftRule && rightRule) {
@@ -261,7 +271,7 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
           type: 'added',
           newLineNumber: lines.length + 1,
           content: `${selector} { ${rightRule} }`,
-          isSignificant: true
+          isSignificant: true,
         });
         changeCount++;
       } else if (leftRule !== rightRule) {
@@ -269,13 +279,13 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
           type: 'removed',
           oldLineNumber: lines.length + 1,
           content: `${selector} { ${leftRule} }`,
-          isSignificant: true
+          isSignificant: true,
         });
         lines.push({
           type: 'added',
           newLineNumber: lines.length + 1,
           content: `${selector} { ${rightRule} }`,
-          isSignificant: true
+          isSignificant: true,
         });
         changeCount += 2;
       }
@@ -285,12 +295,15 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
       type: 'css',
       title: 'CSS スタイル',
       changeCount: Math.min(changeCount, 15), // 表示用に制限
-      lines: lines.slice(0, 30) // 表示用に制限
+      lines: lines.slice(0, 30), // 表示用に制限
     };
   };
 
   // JavaScriptコンテンツの比較
-  const compareJSContent = (leftContent: string, rightContent: string): DiffSection => {
+  const compareJSContent = (
+    leftContent: string,
+    rightContent: string
+  ): DiffSection => {
     const lines: DiffLine[] = [];
     let changeCount = 0;
 
@@ -302,22 +315,30 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
     const leftFunctions = leftJS.match(/function\s+\w+\s*\([^}]*\}/g) || [];
     const rightFunctions = rightJS.match(/function\s+\w+\s*\([^}]*\}/g) || [];
 
-    const leftFuncNames = leftFunctions.map(f => f.match(/function\s+(\w+)/)?.[1] || '');
-    const rightFuncNames = rightFunctions.map(f => f.match(/function\s+(\w+)/)?.[1] || '');
+    const leftFuncNames = leftFunctions.map(
+      (f) => f.match(/function\s+(\w+)/)?.[1] || ''
+    );
+    const rightFuncNames = rightFunctions.map(
+      (f) => f.match(/function\s+(\w+)/)?.[1] || ''
+    );
 
     const allFunctionNames = new Set([...leftFuncNames, ...rightFuncNames]);
 
-    allFunctionNames.forEach(funcName => {
+    allFunctionNames.forEach((funcName) => {
       if (funcName) {
-        const leftFunc = leftFunctions.find(f => f.includes(`function ${funcName}`));
-        const rightFunc = rightFunctions.find(f => f.includes(`function ${funcName}`));
+        const leftFunc = leftFunctions.find((f) =>
+          f.includes(`function ${funcName}`)
+        );
+        const rightFunc = rightFunctions.find((f) =>
+          f.includes(`function ${funcName}`)
+        );
 
         if (!rightFunc && leftFunc) {
           lines.push({
             type: 'removed',
             oldLineNumber: lines.length + 1,
             content: leftFunc,
-            isSignificant: true
+            isSignificant: true,
           });
           changeCount++;
         } else if (!leftFunc && rightFunc) {
@@ -325,7 +346,7 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
             type: 'added',
             newLineNumber: lines.length + 1,
             content: rightFunc,
-            isSignificant: true
+            isSignificant: true,
           });
           changeCount++;
         }
@@ -336,32 +357,35 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
       type: 'js',
       title: 'JavaScript',
       changeCount: Math.min(changeCount, 8),
-      lines: lines.slice(0, 20)
+      lines: lines.slice(0, 20),
     };
   };
 
   // メタデータの比較
-  const compareMetadata = (leftContent: string, rightContent: string): DiffSection => {
+  const compareMetadata = (
+    leftContent: string,
+    rightContent: string
+  ): DiffSection => {
     const lines: DiffLine[] = [];
     let changeCount = 0;
 
     const leftMeta = extractMetadata(leftContent);
     const rightMeta = extractMetadata(rightContent);
 
-    Object.keys(leftMeta).forEach(key => {
+    Object.keys(leftMeta).forEach((key) => {
       if (leftMeta[key] !== rightMeta[key]) {
         if (rightMeta[key]) {
           lines.push({
             type: 'removed',
             oldLineNumber: lines.length + 1,
             content: `<meta name="${key}" content="${leftMeta[key]}">`,
-            isSignificant: true
+            isSignificant: true,
           });
           lines.push({
             type: 'added',
             newLineNumber: lines.length + 1,
             content: `<meta name="${key}" content="${rightMeta[key]}">`,
-            isSignificant: true
+            isSignificant: true,
           });
           changeCount += 2;
         } else {
@@ -369,20 +393,20 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
             type: 'removed',
             oldLineNumber: lines.length + 1,
             content: `<meta name="${key}" content="${leftMeta[key]}">`,
-            isSignificant: true
+            isSignificant: true,
           });
           changeCount++;
         }
       }
     });
 
-    Object.keys(rightMeta).forEach(key => {
+    Object.keys(rightMeta).forEach((key) => {
       if (!leftMeta[key]) {
         lines.push({
           type: 'added',
           newLineNumber: lines.length + 1,
           content: `<meta name="${key}" content="${rightMeta[key]}">`,
-          isSignificant: true
+          isSignificant: true,
         });
         changeCount++;
       }
@@ -392,7 +416,7 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
       type: 'meta',
       title: 'メタデータ',
       changeCount: Math.min(changeCount, 5),
-      lines: lines.slice(0, 10)
+      lines: lines.slice(0, 10),
     };
   };
 
@@ -400,16 +424,16 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
   const extractStyles = (html: string): Record<string, string> => {
     const styles: Record<string, string> = {};
     const styleMatches = html.match(/<style[^>]*>(.*?)<\/style>/gis);
-    
+
     if (styleMatches) {
-      styleMatches.forEach(styleBlock => {
+      styleMatches.forEach((styleBlock) => {
         const cssContent = styleBlock.replace(/<\/?style[^>]*>/gi, '');
         const rules = cssContent.match(/[^{]+\{[^}]*\}/g) || [];
-        
-        rules.forEach(rule => {
+
+        rules.forEach((rule) => {
           const selectorMatch = rule.match(/([^{]+)\s*\{/);
           const propertiesMatch = rule.match(/\{([^}]*)\}/);
-          
+
           if (selectorMatch && propertiesMatch) {
             const selector = selectorMatch[1].trim();
             const properties = propertiesMatch[1].trim();
@@ -418,7 +442,7 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
         });
       });
     }
-    
+
     return styles;
   };
 
@@ -430,19 +454,19 @@ const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({
   const extractMetadata = (html: string): Record<string, string> => {
     const metadata: Record<string, string> = {};
     const metaMatches = html.match(/<meta[^>]*>/gi) || [];
-    
-    metaMatches.forEach(meta => {
+
+    metaMatches.forEach((meta) => {
       const nameMatch = meta.match(/name=['"]([^'"]*)['"]/i);
       const contentMatch = meta.match(/content=['"]([^'"]*)['"]/i);
       const propertyMatch = meta.match(/property=['"]([^'"]*)['"]/i);
-      
+
       if (nameMatch && contentMatch) {
         metadata[nameMatch[1]] = contentMatch[1];
       } else if (propertyMatch && contentMatch) {
         metadata[propertyMatch[1]] = contentMatch[1];
       }
     });
-    
+
     return metadata;
   };
 

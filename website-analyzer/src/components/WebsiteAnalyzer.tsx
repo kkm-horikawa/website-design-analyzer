@@ -239,26 +239,27 @@ const WebsiteAnalyzer = () => {
   const fetchViaCDXAPI = async (url: string) => {
     try {
       console.log(`Fetching real data from backend API for: ${url}`);
-      
+
       // バックエンドAPIにリクエスト
       const backendUrl = `http://localhost:3001/api/wayback-snapshots/${encodeURIComponent(url)}`;
       console.log(`Backend API URL: ${backendUrl}`);
-      
+
       const response = await fetch(backendUrl);
-      
+
       if (!response.ok) {
-        throw new Error(`Backend API failed: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Backend API failed: ${response.status} ${response.statusText}`
+        );
       }
-      
+
       const data = await response.json();
-      
+
       console.log(`Backend API response:`, data);
-      
+
       return data;
-      
     } catch (error) {
       console.warn('Backend API access failed:', error);
-      
+
       // バックエンドAPIへのアクセスが失敗した場合はエラーを返す
       return {
         url,
@@ -266,11 +267,10 @@ const WebsiteAnalyzer = () => {
         historicalSnapshots: [],
         analysisQuality: 'low' as const,
         dataSource: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   };
-
 
   // A/Bテスト検出
   const detectABTests = (snapshots: any[]): ABTest[] => {
@@ -455,9 +455,7 @@ const WebsiteAnalyzer = () => {
   };
 
   // 推奨事項生成
-  const generateRecommendations = (
-    insights: Insight[]
-  ): Recommendation[] => {
+  const generateRecommendations = (insights: Insight[]): Recommendation[] => {
     const recommendations: Recommendation[] = [];
 
     recommendations.push({
@@ -1016,7 +1014,7 @@ const WebsiteAnalyzer = () => {
             { name: 'Amazon', url: 'https://amazon.com' },
             { name: 'Microsoft', url: 'https://microsoft.com' },
             { name: 'Facebook', url: 'https://facebook.com' },
-            { name: 'Career Town', url: 'https://career-town.net/lp/yups/' }
+            { name: 'Career Town', url: 'https://career-town.net/lp/yups/' },
           ].map((sample, index) => (
             <button
               key={index}
@@ -1030,7 +1028,9 @@ const WebsiteAnalyzer = () => {
             >
               <div>
                 <div className="font-medium text-gray-900">{sample.name}</div>
-                <div className="text-xs text-gray-500 truncate">{sample.url}</div>
+                <div className="text-xs text-gray-500 truncate">
+                  {sample.url}
+                </div>
               </div>
               <Plus className="h-4 w-4 text-blue-600" />
             </button>
