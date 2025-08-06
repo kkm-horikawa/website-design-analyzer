@@ -235,32 +235,138 @@ const WebsiteAnalyzer = () => {
     }
   };
 
-  // バックエンドAPIを使用した履歴データ取得
+  // プロキシサービス経由でWayback Machine CDX APIからデータ取得
   const fetchViaCDXAPI = async (url: string) => {
     try {
-      console.log(`Fetching real data from backend API for: ${url}`);
+      console.log(`Fetching real data from CDX API for: ${url}`);
 
-      // バックエンドAPIにリクエスト
-      const backendUrl = `http://localhost:3001/api/wayback-snapshots/${encodeURIComponent(url)}`;
-      console.log(`Backend API URL: ${backendUrl}`);
+      // URL変形版を生成
+      const urlVariants = generateUrlVariants(url);
+      console.log(`Testing URL variants:`, urlVariants);
 
-      const response = await fetch(backendUrl);
+      for (const testUrl of urlVariants) {
+        try {
+          // CDX API URLを構築
+          const cdxUrl = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(testUrl)}&matchType=prefix&collapse=timestamp:8&output=json&fl=timestamp,original,statuscode&limit=200`;
+          
+          // CORS回避のためプロキシサービスを使用
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(cdxUrl)}`;
+          
+          console.log(`Fetching via proxy: ${proxyUrl}`);
 
-      if (!response.ok) {
-        throw new Error(
-          `Backend API failed: ${response.status} ${response.statusText}`
-        );
+          const response = await fetch(proxyUrl);
+
+          if (!response.ok) {
+            console.warn(`CDX API returned ${response.status} for ${testUrl}`);
+            continue;
+          }
+
+          const textContent = await response.text();
+
+          if (!textContent || textContent.trim() === '') {
+            console.log(`No snapshots found for ${testUrl}`);
+            continue;
+          }
+
+          console.log(`CDX Response length: ${textContent.length} characters for ${testUrl}`);
+
+          // CDX形式のデータをパース
+          const lines = textContent.trim().split('\n');
+          console.log(`Found ${lines.length} lines in CDX response for ${testUrl}`);
+
+          if (lines.length > 1) {
+            const snapshots = [];
+            for (let i = 1; i < lines.length; i++) {
+              try {
+                // 行末の余分な文字（カンマ、括弧など）をクリーンアップ
+                let line = lines[i].trim().replace(/[,\]]+$/, '');
+                if (line === '' || !line.startsWith('[')) continue;
+                
+                // 閉じ括弧が不足している場合は追加
+                if (!line.endsWith(']')) {
+                  line += ']';
+                }
+
+                const data = JSON.parse(line);
+                if (data.length >= 3) {
+                  const [timestamp, originalUrl, statusCode] = data;
+
+                  // 成功したリクエストのみを含める
+                  if (statusCode === '200' || statusCode === '301' || statusCode === '-') {
+                    snapshots.push({
+                      timestamp,
+                      url: originalUrl,
+                      statusCode,
+                      archiveUrl: `https://web.archive.org/web/${timestamp}/${originalUrl}`,
+                      changeType: determineChangeType(timestamp),
+                    });
+                  }
+                }
+              } catch (parseError) {
+                console.warn(`Failed to parse line ${i}: ${lines[i]}`);
+                continue;
+              }
+            }
+
+            if (snapshots.length > 0) {
+              // タイムスタンプで逆順ソート（新しいものから古いものへ）
+              snapshots.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+              // 3ヶ月に1個程度に間引く
+              const uniqueSnapshots = [];
+              const quarterCounts: Record<string, number> = {};
+              
+              for (const snapshot of snapshots) {
+                // YYYYMM形式から3ヶ月単位のキーを生成（Q1:01-03, Q2:04-06, Q3:07-09, Q4:10-12）
+                const year = snapshot.timestamp.substring(0, 4);
+                const month = parseInt(snapshot.timestamp.substring(4, 6));
+                const quarter = Math.ceil(month / 3);
+                const quarterKey = `${year}Q${quarter}`;
+                
+                if (!quarterCounts[quarterKey]) {
+                  quarterCounts[quarterKey] = 0;
+                }
+                
+                if (quarterCounts[quarterKey] < 1) { // 四半期に1個まで
+                  uniqueSnapshots.push(snapshot);
+                  quarterCounts[quarterKey]++;
+                }
+              }
+
+              const finalSnapshots = uniqueSnapshots.slice(0, 50); // 約12年分（四半期ごと）
+
+              console.log(`Successfully processed ${finalSnapshots.length} snapshots for ${testUrl}`);
+              console.log(`Date range: ${formatTimestamp(finalSnapshots[finalSnapshots.length - 1]?.timestamp)} → ${formatTimestamp(finalSnapshots[0]?.timestamp)}`);
+
+              return {
+                url,
+                available: finalSnapshots.length > 0,
+                historicalSnapshots: finalSnapshots,
+                analysisQuality: finalSnapshots.length > 15 ? 'high' : finalSnapshots.length > 5 ? 'medium' : 'low',
+                dataSource: 'wayback_api_proxy',
+                successfulUrl: testUrl
+              };
+            }
+          }
+        } catch (fetchError) {
+          console.warn(`Error fetching ${testUrl}:`, fetchError);
+          continue;
+        }
       }
 
-      const data = await response.json();
+      // 全てのURL変形版で失敗した場合
+      console.log(`No snapshots found for any URL variant of: ${url}`);
+      return {
+        url,
+        available: false,
+        historicalSnapshots: [],
+        analysisQuality: 'low' as const,
+        dataSource: 'wayback_api_no_data',
+      };
 
-      console.log(`Backend API response:`, data);
-
-      return data;
     } catch (error) {
-      console.warn('Backend API access failed:', error);
+      console.warn('CDX API access failed:', error);
 
-      // バックエンドAPIへのアクセスが失敗した場合はエラーを返す
       return {
         url,
         available: false,
@@ -270,6 +376,73 @@ const WebsiteAnalyzer = () => {
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
+  };
+
+  // URL変形版を生成（www有無、プロトコル等）
+  const generateUrlVariants = (url: string): string[] => {
+    const variants = [url];
+    
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname;
+      const path = urlObj.pathname + urlObj.search;
+      
+      // www有無の変形
+      if (domain.startsWith('www.')) {
+        const withoutWww = domain.replace('www.', '');
+        variants.push(`${urlObj.protocol}//${withoutWww}${path}`);
+        variants.push(`${withoutWww}${path}`);
+        variants.push(withoutWww);
+      } else {
+        variants.push(`${urlObj.protocol}//www.${domain}${path}`);
+        variants.push(`www.${domain}${path}`);
+        variants.push(`www.${domain}`);
+      }
+      
+      // プロトコル無し版
+      variants.push(`${domain}${path}`);
+      variants.push(domain);
+      
+      // パス無し版（必要な場合のみ）
+      if (path !== '/' && path !== '') {
+        variants.push(`${urlObj.protocol}//${domain}`);
+        variants.push(domain);
+      }
+      
+    } catch (error) {
+      console.warn('URL parsing error:', error);
+    }
+    
+    return [...new Set(variants)]; // 重複除去
+  };
+
+  // タイムスタンプから変更タイプを推定
+  const determineChangeType = (timestamp: string): string => {
+    const currentTime = new Date();
+    const snapshotTime = new Date(
+      parseInt(timestamp.substring(0, 4)),
+      parseInt(timestamp.substring(4, 6)) - 1,
+      parseInt(timestamp.substring(6, 8))
+    );
+    
+    const monthsAgo = Math.floor(
+      (currentTime.getTime() - snapshotTime.getTime()) / (1000 * 60 * 60 * 24 * 30)
+    );
+
+    if (monthsAgo <= 2) return 'recent';
+    if (monthsAgo <= 6) return 'moderate';
+    if (monthsAgo <= 12) return 'significant';
+    if (monthsAgo <= 24) return 'major';
+    return 'historical';
+  };
+
+  // 日付フォーマット
+  const formatTimestamp = (timestamp: string): string => {
+    if (!timestamp) return 'Unknown';
+    const year = timestamp.substring(0, 4);
+    const month = timestamp.substring(4, 6);
+    const day = timestamp.substring(6, 8);
+    return `${year}/${month}/${day}`;
   };
 
   // A/Bテスト検出
@@ -321,7 +494,7 @@ const WebsiteAnalyzer = () => {
       }
 
       tests.push({
-        period: `${formatDate(previous.timestamp)} - ${formatDate(current.timestamp)}`,
+        period: `${formatTimestamp(previous.timestamp)} - ${formatTimestamp(current.timestamp)}`,
         type: testType,
         confidence: Math.min(95, confidence),
         daysDuration: daysDiff,
@@ -519,7 +692,7 @@ const WebsiteAnalyzer = () => {
       return {
         url: page.url,
         status: 'analyzed',
-        quality: waybackInfo.analysisQuality,
+        quality: waybackInfo.analysisQuality as 'high' | 'medium' | 'low',
         snapshots: waybackInfo.historicalSnapshots.length,
         abTests,
         designElements,
@@ -558,14 +731,6 @@ const WebsiteAnalyzer = () => {
     setLoading(false);
   };
 
-  // 日付フォーマット
-  const formatDate = (timestamp: string): string => {
-    if (!timestamp) return 'Unknown';
-    const year = timestamp.substring(0, 4);
-    const month = timestamp.substring(4, 6);
-    const day = timestamp.substring(6, 8);
-    return `${year}/${month}/${day}`;
-  };
 
   // アイコン取得
   const getInsightIcon = (iconName: string) => {
