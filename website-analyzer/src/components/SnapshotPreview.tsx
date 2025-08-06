@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   ExternalLink,
-  Maximize2,
-  Minimize2,
   RefreshCw,
   AlertTriangle,
   Smartphone,
@@ -13,7 +11,6 @@ interface SnapshotPreviewProps {
   archiveUrl: string;
   timestamp: string;
   originalUrl: string;
-  isLoading?: boolean;
   className?: string;
 }
 
@@ -21,7 +18,6 @@ const SnapshotPreview: React.FC<SnapshotPreviewProps> = ({
   archiveUrl,
   timestamp,
   originalUrl,
-  isLoading = false,
   className = '',
 }) => {
   const [iframeLoaded, setIframeLoaded] = useState(false);

@@ -1,46 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   Calendar,
   Search,
-  Eye,
-  Code,
-  Layers,
   TrendingUp,
   Download,
   ExternalLink,
   RefreshCw,
   Camera,
-  BarChart3,
   Target,
   Zap,
-  ArrowRight,
   CheckCircle,
   AlertTriangle,
   Info,
   Split,
-  Users,
-  MousePointer,
   Clock,
-  Smartphone,
-  Monitor,
-  Globe,
   Upload,
   Plus,
   X,
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  ScatterChart,
-  Scatter,
-} from 'recharts';
 import Papa from 'papaparse';
 import TimelineComparison from './TimelineComparison';
 
@@ -241,51 +218,13 @@ const WebsiteAnalyzer = () => {
     setSelectedPages((prev) => prev.filter((page) => page.id !== id));
   };
 
-  // Wayback Machine データを取得（フロントエンドのみ）
+  // Wayback Machine APIから履歴データを取得（簡素化版）
   const fetchEnhancedWaybackData = async (url: string) => {
     try {
-      // CORS制限のため、実際のAPIではなくモックデータを生成
-      const baseSnapshots = [
-        { months: 2, changes: 'recent' },
-        { months: 4, changes: 'moderate' },
-        { months: 7, changes: 'significant' },
-        { months: 10, changes: 'major' },
-        { months: 14, changes: 'redesign' },
-        { months: 18, changes: 'launch' },
-      ];
-
-      const snapshots = baseSnapshots.map((snap) => {
-        const date = new Date();
-        date.setMonth(date.getMonth() - snap.months);
-        const timestamp =
-          date.getFullYear().toString() +
-          (date.getMonth() + 1).toString().padStart(2, '0') +
-          date.getDate().toString().padStart(2, '0') +
-          Math.floor(Math.random() * 24)
-            .toString()
-            .padStart(2, '0') +
-          Math.floor(Math.random() * 60)
-            .toString()
-            .padStart(2, '0') +
-          '00';
-
-        return {
-          timestamp,
-          url: url,
-          statusCode: '200',
-          archiveUrl: `https://web.archive.org/web/${timestamp}/${url}`,
-          changeType: snap.changes,
-        };
-      });
-
-      return {
-        url,
-        available: true,
-        historicalSnapshots: snapshots,
-        analysisQuality: 'medium' as const,
-        dataSource: 'mock',
-      };
+      console.log(`Fetching archive data for: ${url}`);
+      return await fetchViaCDXAPI(url);
     } catch (error) {
+      console.warn('Wayback Machine API error:', error);
       return {
         url,
         available: false,
@@ -295,6 +234,43 @@ const WebsiteAnalyzer = () => {
       };
     }
   };
+
+  // バックエンドAPIを使用した履歴データ取得
+  const fetchViaCDXAPI = async (url: string) => {
+    try {
+      console.log(`Fetching real data from backend API for: ${url}`);
+      
+      // バックエンドAPIにリクエスト
+      const backendUrl = `http://localhost:3001/api/wayback-snapshots/${encodeURIComponent(url)}`;
+      console.log(`Backend API URL: ${backendUrl}`);
+      
+      const response = await fetch(backendUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Backend API failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      console.log(`Backend API response:`, data);
+      
+      return data;
+      
+    } catch (error) {
+      console.warn('Backend API access failed:', error);
+      
+      // バックエンドAPIへのアクセスが失敗した場合はエラーを返す
+      return {
+        url,
+        available: false,
+        historicalSnapshots: [],
+        analysisQuality: 'low' as const,
+        dataSource: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  };
+
 
   // A/Bテスト検出
   const detectABTests = (snapshots: any[]): ABTest[] => {
@@ -359,8 +335,7 @@ const WebsiteAnalyzer = () => {
 
   // デザイン要素分析
   const analyzeDesignElements = async (
-    snapshots: any[],
-    pageData: PageData
+    snapshots: any[]
   ): Promise<DesignElements> => {
     const elements: DesignElements = {
       layout: { changes: 0, improvements: [], score: 0 },
@@ -481,8 +456,7 @@ const WebsiteAnalyzer = () => {
 
   // 推奨事項生成
   const generateRecommendations = (
-    insights: Insight[],
-    pageData: PageData
+    insights: Insight[]
   ): Recommendation[] => {
     const recommendations: Recommendation[] = [];
 
@@ -540,8 +514,7 @@ const WebsiteAnalyzer = () => {
 
       const abTests = detectABTests(waybackInfo.historicalSnapshots);
       const designElements = await analyzeDesignElements(
-        waybackInfo.historicalSnapshots,
-        page
+        waybackInfo.historicalSnapshots
       );
       const insights = generateAdvancedInsights(page, abTests, designElements);
 
@@ -553,7 +526,7 @@ const WebsiteAnalyzer = () => {
         abTests,
         designElements,
         insights,
-        recommendations: generateRecommendations(insights, page),
+        recommendations: generateRecommendations(insights),
       };
     } catch (error) {
       return {
@@ -1027,6 +1000,43 @@ const WebsiteAnalyzer = () => {
           </div>
         </>
       )}
+
+      {/* テスト用URL追加ボタン */}
+      <div className="bg-blue-50 rounded-lg shadow-lg p-6 mt-6">
+        <h2 className="text-lg font-semibold text-blue-900 mb-3">
+          📝 テスト用URLサンプル
+        </h2>
+        <p className="text-sm text-blue-700 mb-4">
+          アーカイブデータが豊富なサイトでテスト可能です
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {[
+            { name: 'Google', url: 'https://google.com' },
+            { name: 'Apple', url: 'https://apple.com' },
+            { name: 'Amazon', url: 'https://amazon.com' },
+            { name: 'Microsoft', url: 'https://microsoft.com' },
+            { name: 'Facebook', url: 'https://facebook.com' },
+            { name: 'Career Town', url: 'https://career-town.net/lp/yups/' }
+          ].map((sample, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                const newPage = createPageFromUrl(sample.url);
+                if (!data.some((page) => page.url === sample.url)) {
+                  setData((prev) => [...prev, newPage]);
+                }
+              }}
+              className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors text-left"
+            >
+              <div>
+                <div className="font-medium text-gray-900">{sample.name}</div>
+                <div className="text-xs text-gray-500 truncate">{sample.url}</div>
+              </div>
+              <Plus className="h-4 w-4 text-blue-600" />
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* 使用ガイド */}
       <div className="bg-white rounded-lg shadow-lg p-6 mt-6">

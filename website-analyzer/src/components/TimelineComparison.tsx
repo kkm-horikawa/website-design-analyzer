@@ -2,25 +2,18 @@ import React, { useState, useMemo } from 'react';
 import {
   Calendar,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
   Clock,
   Target,
   TrendingUp,
-  ArrowRight,
   Eye,
   Layers,
   Zap,
   Grid,
   List,
   BarChart3,
-  Filter,
   Search,
   SortAsc,
   SortDesc,
-  Code,
 } from 'lucide-react';
 import SnapshotPreview from './SnapshotPreview';
 import CodeDiffViewer from './CodeDiffViewer';
@@ -47,11 +40,9 @@ const TimelineComparison: React.FC<TimelineComparisonProps> = ({
   onClose,
 }) => {
   const [selectedSnapshots, setSelectedSnapshots] = useState<number[]>([]);
-  const [isFullscreen, setIsFullscreen] = useState(true); // デフォルトで全画面
   const [viewMode, setViewMode] = useState<
     'timeline' | 'comparison' | 'analysis'
   >('timeline');
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterType, setFilterType] = useState<string>('all');
@@ -866,7 +857,7 @@ const TimelineComparison: React.FC<TimelineComparisonProps> = ({
                             変更タイムライン
                           </h4>
                           <div className="space-y-2">
-                            {selectedSnapshots.map((snapshotIndex, idx) => {
+                            {selectedSnapshots.map((snapshotIndex) => {
                               const snapshot = sortedSnapshots[snapshotIndex];
                               return (
                                 <div
